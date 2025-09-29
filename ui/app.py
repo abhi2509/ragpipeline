@@ -11,13 +11,27 @@ try:
 except ImportError:
     PyPDF2 = None
 
+"""
+Streamlit UI for Financial Data RAG Pipeline
+
+- Allows users to upload financial data in CSV, Excel, JSON, or PDF format
+- Parses and normalizes uploaded data
+- Initializes and runs the RAG pipeline for question answering
+- Reads OpenAI API key from environment variable
+"""
+
 st.title("Financial Data RAG Pipeline")
 
 api_key = st.text_input("Enter your OpenAI API Key:", type="password")
 
-uploaded_file = st.file_uploader("Upload your financial data (CSV, Excel, JSON, PDF)", type=["csv", "xlsx", "json", "pdf"])
+uploaded_file = st.file_uploader(
+    "Upload your financial data (CSV, Excel, JSON, PDF)", type=["csv", "xlsx", "json", "pdf"])
 
 def parse_file(uploaded_file):
+    """
+    Parse uploaded file and return its path and DataFrame.
+    Supports CSV, Excel, JSON, and PDF formats.
+    """
     if uploaded_file is None:
         return None, None
     filename = uploaded_file.name

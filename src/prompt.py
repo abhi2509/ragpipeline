@@ -1,4 +1,13 @@
 def build_financial_prompt(context: str, question: str) -> str:
+    """
+    Construct a best-practice prompt for financial data RAG pipeline.
+
+    Args:
+        context (str): Retrieved context from the vector store.
+        question (str): User's question.
+    Returns:
+        str: Formatted prompt for LLM input.
+    """
     return (
         "You are a financial data expert. Use only the provided data to answer. "
         "If the answer is not present in the data, say 'I do not know based on the provided data.' "

@@ -5,7 +5,7 @@ from langchain.embeddings import SentenceTransformerEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatOpenAI
-from config import OPENAI_API_KEY, EMBEDDING_MODEL, LLM_MODEL, DATA_PATH
+from config import Config
 from prompt import build_financial_prompt
 from typing import List, Optional, Union
 import hashlib
@@ -27,19 +27,57 @@ CHUNK_SIZE = int(os.getenv('CHUNK_SIZE', 500))  # Configurable chunk size
 CHUNK_OVERLAP = int(os.getenv('CHUNK_OVERLAP', 50))  # Configurable overlap
 
 class FinancialRAGPipeline:
-    def __init__(self, data_path=DATA_PATH, openai_api_key=OPENAI_API_KEY):
+    """
+    Retrieval-Augmented Generation (RAG) pipeline for financial data.
+
+    This class loads financial data from various formats (CSV, Excel, JSON, PDF),
+    embeds the data using Sentence Transformers, stores embeddings in an in-memory FAISS vector store,
+    and answers user queries using a Large Language Model (LLM) with context retrieved via similarity search.
+
+    Features:
+    - Data validation and cleaning
+    - Configurable chunking for large documents
+    - Caching for repeated queries
+    - Support for multiple file formats
+    - Modular prompt construction
+    - Rate limiting to avoid API throttling
+    """
+    def __init__(self, data_path=Config.DATA_PATH, openai_api_key=Config.OPENAI_API_KEY):
+        """
+        Initialize the RAG pipeline.
+
+        Args:
+            data_path (str): Path to the financial data file.
+            openai_api_key (str): OpenAI API key for LLM integration.
+        Raises:
+            ValueError: If the data path is invalid or file does not exist.
+        """
         if not data_path or not os.path.exists(data_path):
             raise ValueError(f"Invalid data path: {data_path}. File does not exist.")
         self.data_path = data_path
         self.openai_api_key = openai_api_key
-        self.embeddings = SentenceTransformerEmbeddings(model_name=EMBEDDING_MODEL)
+        self.embeddings = SentenceTransformerEmbeddings(model_name=Config.EMBEDDING_MODEL)
         self.vector_store = None
-        self.llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=LLM_MODEL)
+        self.llm = ChatOpenAI(
+            openai_api_key=openai_api_key,
+            model_name=Config.LLM_MODEL,
+            temperature=Config.LLM_TEMPERATURE,
+            max_tokens=Config.LLM_MAX_TOKENS,
+            top_p=Config.LLM_TOP_P,
+            frequency_penalty=Config.LLM_FREQUENCY_PENALTY,
+            presence_penalty=Config.LLM_PRESENCE_PENALTY
+        )
         self.qa_chain = None
         self.cache = {}
         logging.info(f"Initialized pipeline with data: {data_path}")
 
     def load_and_embed(self):
+        """
+        Load financial data, clean and validate it, chunk for embedding,
+        and store embeddings in an in-memory FAISS vector store.
+        Raises:
+            Exception: If any error occurs during loading or embedding.
+        """
         try:
             logging.info("Loading financial data for embedding...")
             df = self._parse_file(self.data_path)
@@ -54,6 +92,16 @@ class FinancialRAGPipeline:
             raise
 
     def similarity_search(self, query: str, k: int = 5) -> List[str]:
+        """
+        Perform similarity search in the vector store to retrieve top-k relevant chunks for a query.
+        Args:
+            query (str): The user query.
+            k (int): Number of top similar chunks to retrieve.
+        Returns:
+            List[str]: List of relevant text chunks.
+        Raises:
+            Exception: If vector store is not initialized.
+        """
         if not self.vector_store:
             raise Exception("Vector store not initialized. Call load_and_embed() first.")
         logging.info(f"Performing similarity search for: {query}")
@@ -61,6 +109,13 @@ class FinancialRAGPipeline:
         return [doc.page_content for doc in docs]
 
     def query(self, question: str) -> Optional[str]:
+        """
+        Answer a user query using the LLM, with context retrieved from the vector store.
+        Args:
+            question (str): The user's question.
+        Returns:
+            Optional[str]: The LLM's answer, or None if an error occurs.
+        """
         if not self.vector_store:
             raise Exception("Vector store not initialized. Call load_and_embed() first.")
         cache_key = hashlib.sha256(question.encode()).hexdigest()
@@ -83,6 +138,15 @@ class FinancialRAGPipeline:
             return None
 
     def _parse_file(self, file_path: str) -> pd.DataFrame:
+        """
+        Parse the input file based on its extension (CSV, Excel, JSON, PDF).
+        Args:
+            file_path (str): Path to the file.
+        Returns:
+            pd.DataFrame: Parsed data as a DataFrame.
+        Raises:
+            ValueError: If file type is unsupported or PDF parser is missing.
+        """
         ext = file_path.split('.')[-1].lower()
         if ext == "csv":
             return pd.read_csv(file_path)
@@ -101,15 +165,26 @@ class FinancialRAGPipeline:
             raise ValueError(f"Unsupported file type or missing PDF parser for: {file_path}")
 
     def _validate_and_clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Remove duplicates, handle missing values, normalize columns
+        """
+        Validate and clean the input DataFrame by removing duplicates and filling missing values.
+        Args:
+            df (pd.DataFrame): Input data.
+        Returns:
+            pd.DataFrame: Cleaned data.
+        """
         df = df.drop_duplicates()
         df = df.fillna('N/A')
-        # Add more cleaning as needed
         logging.info(f"Validated and cleaned data: {df.shape[0]} rows.")
         return df
 
     def _chunk_texts(self, texts: List[str]) -> List[str]:
-        # Chunking large texts for efficient embedding
+        """
+        Split large texts into smaller chunks for efficient embedding.
+        Args:
+            texts (List[str]): List of text strings.
+        Returns:
+            List[str]: List of text chunks.
+        """
         chunks = []
         for text in texts:
             start = 0
@@ -119,7 +194,3 @@ class FinancialRAGPipeline:
                 chunks.append(chunk)
                 start += CHUNK_SIZE - CHUNK_OVERLAP
         return chunks
-
-    def _build_prompt(self, question: str) -> str:
-        # Deprecated: now using build_financial_prompt from prompt.py
-        pass
