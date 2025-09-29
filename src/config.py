@@ -13,7 +13,7 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
     LLM_MODEL = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
-    DATA_PATH = os.getenv("DATA_PATH", "data/financial_data.csv")
+    DATA_PATH = os.getenv("DATA_PATH", "data/wix_kb_corpus.jsonl")
     LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))  # Lower temp for factual answers
     LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "512"))
     LLM_TOP_P = float(os.getenv("LLM_TOP_P", "1.0"))

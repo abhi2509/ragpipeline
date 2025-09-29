@@ -32,6 +32,7 @@ Streamlit UI for Financial Data RAG Pipeline
 
 st.set_page_config(page_title="Financial RAG Pipeline", layout="wide", initial_sidebar_state="expanded")
 
+
 # Custom CSS for light mode and modern look
 st.markdown("""
     <style>
@@ -83,11 +84,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+
 with st.sidebar:
     st.header("Instructions")
     st.markdown("""
-    1. Upload your financial data (CSV, Excel, JSON, PDF).
-    2. Ask questions about your data.
+    1. Data is loaded from file at startup (see .env DATA_PATH).
+    2. Ask questions about your data immediately.
     3. View query performance and retrieved context.
     """)
     st.markdown("---")
@@ -95,25 +97,17 @@ with st.sidebar:
 
 st.title("Financial Data RAG Pipeline")
 
+
 api_key = os.getenv("OPENAI_API_KEY")
-
-uploaded_file = st.file_uploader(
-    "Upload your financial data (CSV, Excel, JSON, PDF)", type=["csv", "xlsx", "json", "pdf"])
-
+from config import Config
 from modules.data_utils import DataUtils
 
-def parse_file(uploaded_file):
-    """
-    Parse uploaded file and return its path and DataFrame.
-    Supports CSV, Excel, JSON, and PDF formats.
-    """
-    if uploaded_file is None:
-        return None, None
-    filename = uploaded_file.name
-    ext = filename.split('.')[-1].lower()
-    data_path = os.path.join("data", filename)
-    with open(data_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
+# Load data from file at startup
+data_path = Config.DATA_PATH
+if not os.path.exists(data_path):
+    st.error(f"Data file not found: {data_path}. Please check your .env configuration.")
+else:
+    ext = data_path.split('.')[-1].lower()
     if ext == "csv":
         df = pd.read_csv(data_path)
     elif ext == "xlsx":
@@ -122,20 +116,21 @@ def parse_file(uploaded_file):
         with open(data_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         df = pd.json_normalize(data)
+    elif ext == "jsonl":
+        with open(data_path, "r", encoding="utf-8") as f:
+            lines = [json.loads(line) for line in f if line.strip()]
+        df = pd.json_normalize(lines)
     elif ext == "pdf" and PyPDF2:
-        pdf_reader = PyPDF2.PdfReader(BytesIO(uploaded_file.getbuffer()))
-        text = "\n".join(page.extract_text() for page in pdf_reader.pages if page.extract_text())
+        with open(data_path, "rb") as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            text = "\n".join(page.extract_text() for page in pdf_reader.pages if page.extract_text())
         df = pd.DataFrame({"text": [text]})
     else:
         st.error("Unsupported file type or missing PDF parser.")
-        return None, None
-    df = DataUtils.clean_data(df)
-    return data_path, df
-
-if uploaded_file and api_key:
-    data_path, df = parse_file(uploaded_file)
+        df = None
     if df is not None:
-        st.success(f"Uploaded and parsed {uploaded_file.name}")
+        df = DataUtils.clean_data(df)
+        st.success(f"Loaded and parsed {os.path.basename(data_path)}")
         st.subheader("Data Preview")
         st.dataframe(df.head(20))
         st.subheader("Data Charts")
@@ -148,9 +143,9 @@ if uploaded_file and api_key:
         # Save parsed data as CSV for pipeline
         csv_path = data_path if data_path.endswith(".csv") else data_path + ".csv"
         df.to_csv(csv_path, index=False)
-    pipeline = FinancialRAGPipeline(csv_path, api_key)
-    pipeline.load_and_embed()
-    st.session_state["pipeline"] = pipeline
+        pipeline = FinancialRAGPipeline(csv_path, api_key)
+        pipeline.load_and_embed()
+        st.session_state["pipeline"] = pipeline
 
 if "pipeline" in st.session_state:
     if "question" not in st.session_state:
