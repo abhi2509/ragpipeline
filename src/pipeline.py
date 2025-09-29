@@ -75,14 +75,22 @@ class FinancialRAGPipeline:
         """
         Load financial data, clean and validate it, chunk for embedding,
         and store embeddings in an in-memory FAISS vector store.
-        Raises:
-            Exception: If any error occurs during loading or embedding.
+        Handles structured (tabular) and unstructured (text) data separately for efficiency.
         """
         try:
             logging.info("Loading financial data for embedding...")
             df = self._parse_file(self.data_path)
             df = self._validate_and_clean_data(df)
-            texts = df.astype(str).apply(lambda row: ' '.join(row), axis=1).tolist()
+            # Separate structured and unstructured columns
+            text_cols = [col for col in df.columns if df[col].dtype == 'object']
+            num_cols = [col for col in df.columns if df[col].dtype != 'object']
+            texts = []
+            # For structured/tabular data, combine all columns per row
+            if num_cols:
+                texts.extend(df.astype(str).apply(lambda row: ' '.join(row), axis=1).tolist())
+            # For unstructured/text data, embed each text column separately
+            for col in text_cols:
+                texts.extend(df[col].dropna().astype(str).tolist())
             chunks = self._chunk_texts(texts)
             logging.info(f"Embedding {len(chunks)} chunks of data.")
             self.vector_store = FAISS.from_texts(chunks, self.embeddings)
