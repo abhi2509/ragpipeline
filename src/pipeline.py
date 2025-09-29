@@ -3,8 +3,8 @@ import logging
 import pandas as pd
 from langchain.embeddings import SentenceTransformerEmbeddings
 from langchain.vectorstores import FAISS
-from langchain.llms import OpenAI
 from langchain.chains import RetrievalQA
+from langchain.chat_models import ChatOpenAI
 from config import OPENAI_API_KEY, EMBEDDING_MODEL, LLM_MODEL, DATA_PATH
 from prompt import FINANCIAL_PROMPT
 from typing import List, Optional, Union
@@ -15,6 +15,7 @@ try:
     import PyPDF2
 except ImportError:
     PyPDF2 = None
+import time
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,7 +32,7 @@ class FinancialRAGPipeline:
         self.openai_api_key = openai_api_key
         self.embeddings = SentenceTransformerEmbeddings(model_name=EMBEDDING_MODEL)
         self.vector_store = None
-        self.llm = OpenAI(openai_api_key=openai_api_key, model_name=LLM_MODEL)
+        self.llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=LLM_MODEL)
         self.qa_chain = None
         self.cache = {}
         logging.info(f"Initialized pipeline with data: {data_path}")
@@ -71,7 +72,8 @@ class FinancialRAGPipeline:
             context = "\n".join(context_chunks)
             full_prompt = f"{FINANCIAL_PROMPT}\nContext:\n{context}\nQuestion: {question}\n"
             logging.info(f"Querying LLM with context: {full_prompt}")
-            answer = self.llm(full_prompt)
+            time.sleep(2)  # Add delay to reduce request frequency
+            answer = self.llm.invoke(full_prompt)
             self.cache[cache_key] = answer
             logging.info(f"LLM response: {answer}")
             return answer
