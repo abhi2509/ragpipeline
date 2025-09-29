@@ -153,10 +153,11 @@ if uploaded_file and api_key:
     st.session_state["pipeline"] = pipeline
 
 if "pipeline" in st.session_state:
-    question = st.text_input("Ask a question about your financial data:")
+    if "question" not in st.session_state:
+        st.session_state["question"] = ""
+    question = st.text_input("Ask a question about your financial data:", value=st.session_state["question"], key="question_input")
     if question:
         start_time = time.time()
-        # Retrieve context chunks for display
         context_chunks = st.session_state["pipeline"].similarity_search(question, k=5)
         answer = st.session_state["pipeline"].query(question)
         elapsed = time.time() - start_time
@@ -165,3 +166,5 @@ if "pipeline" in st.session_state:
             for i, chunk in enumerate(context_chunks, 1):
                 st.markdown(f"**Chunk {i}:** {chunk}")
         st.write("**Answer:**", answer)
+        # Clear input for next question
+        st.session_state["question"] = ""
