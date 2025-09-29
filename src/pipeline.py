@@ -28,6 +28,8 @@ CHUNK_OVERLAP = int(os.getenv('CHUNK_OVERLAP', 50))  # Configurable overlap
 
 class FinancialRAGPipeline:
     def __init__(self, data_path=DATA_PATH, openai_api_key=OPENAI_API_KEY):
+        if not data_path or not os.path.exists(data_path):
+            raise ValueError(f"Invalid data path: {data_path}. File does not exist.")
         self.data_path = data_path
         self.openai_api_key = openai_api_key
         self.embeddings = SentenceTransformerEmbeddings(model_name=EMBEDDING_MODEL)
