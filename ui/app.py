@@ -1,9 +1,18 @@
+
 import streamlit as st
 import os
 import sys
 import time
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
-from pipeline import FinancialRAGPipeline
+# Ensure src is in sys.path for absolute imports
+SRC_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))
+if SRC_PATH not in sys.path:
+    sys.path.insert(0, SRC_PATH)
+try:
+    from pipeline import FinancialRAGPipeline
+    from modules.data_utils import DataUtils
+except ImportError as e:
+    st.error(f"Import error: {e}. Please check your project structure and PYTHONPATH.")
+    raise
 import pandas as pd
 import json
 from io import BytesIO
