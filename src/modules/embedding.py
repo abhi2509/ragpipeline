@@ -1,5 +1,5 @@
 import logging
-from langchain.embeddings import SentenceTransformerEmbeddings
+from langchain_community.embeddings import SentenceTransformerEmbeddings
 
 class EmbeddingManager:
     def __init__(self, model_name: str):

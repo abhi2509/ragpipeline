@@ -1,5 +1,5 @@
 import logging
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 
 class RetrievalManager:
     def __init__(self, embeddings):

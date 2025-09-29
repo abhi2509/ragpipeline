@@ -1,5 +1,5 @@
 import logging
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 
 class LLMManager:
     def __init__(self, api_key, model_name, temperature, max_tokens, top_p, freq_penalty, pres_penalty):
