@@ -6,7 +6,7 @@ from langchain.vectorstores import FAISS
 from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatOpenAI
 from config import OPENAI_API_KEY, EMBEDDING_MODEL, LLM_MODEL, DATA_PATH
-from prompt import FINANCIAL_PROMPT
+from prompt import build_financial_prompt
 from typing import List, Optional, Union
 import hashlib
 import json
@@ -61,8 +61,7 @@ class FinancialRAGPipeline:
     def query(self, question: str) -> Optional[str]:
         if not self.vector_store:
             raise Exception("Vector store not initialized. Call load_and_embed() first.")
-        prompt = self._build_prompt(question)
-        cache_key = hashlib.sha256(prompt.encode()).hexdigest()
+        cache_key = hashlib.sha256(question.encode()).hexdigest()
         if cache_key in self.cache:
             logging.info("Returning cached result.")
             return self.cache[cache_key]
@@ -70,7 +69,7 @@ class FinancialRAGPipeline:
             # Retrieve top-k similar chunks
             context_chunks = self.similarity_search(question, k=5)
             context = "\n".join(context_chunks)
-            full_prompt = f"{FINANCIAL_PROMPT}\nContext:\n{context}\nQuestion: {question}\n"
+            full_prompt = build_financial_prompt(context, question)
             logging.info(f"Querying LLM with context: {full_prompt}")
             time.sleep(2)  # Add delay to reduce request frequency
             answer = self.llm.invoke(full_prompt)
@@ -120,5 +119,5 @@ class FinancialRAGPipeline:
         return chunks
 
     def _build_prompt(self, question: str) -> str:
-        # Use prompt from prompt.py
-        return f"{FINANCIAL_PROMPT}\nQuestion: {question}\n"
+        # Deprecated: now using build_financial_prompt from prompt.py
+        pass
