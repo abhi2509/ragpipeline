@@ -91,6 +91,8 @@ api_key = os.getenv("OPENAI_API_KEY")
 uploaded_file = st.file_uploader(
     "Upload your financial data (CSV, Excel, JSON, PDF)", type=["csv", "xlsx", "json", "pdf"])
 
+from modules.data_utils import DataUtils
+
 def parse_file(uploaded_file):
     """
     Parse uploaded file and return its path and DataFrame.
@@ -118,6 +120,7 @@ def parse_file(uploaded_file):
     else:
         st.error("Unsupported file type or missing PDF parser.")
         return None, None
+    df = DataUtils.clean_data(df)
     return data_path, df
 
 if uploaded_file and api_key:
@@ -136,9 +139,9 @@ if uploaded_file and api_key:
         # Save parsed data as CSV for pipeline
         csv_path = data_path if data_path.endswith(".csv") else data_path + ".csv"
         df.to_csv(csv_path, index=False)
-        pipeline = FinancialRAGPipeline(csv_path, api_key)
-        pipeline.load_and_embed()
-        st.session_state["pipeline"] = pipeline
+    pipeline = FinancialRAGPipeline(csv_path, api_key)
+    pipeline.load_and_embed()
+    st.session_state["pipeline"] = pipeline
 
 if "pipeline" in st.session_state:
     question = st.text_input("Ask a question about your financial data:")

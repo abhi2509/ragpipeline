@@ -1,21 +1,21 @@
+
 import os
 import logging
 import pandas as pd
-from langchain.embeddings import SentenceTransformerEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chains import RetrievalQA
-from langchain.chat_models import ChatOpenAI
-from config import Config
-from prompt import build_financial_prompt
-from typing import List, Optional, Union
 import hashlib
 import json
-from io import BytesIO
+import time
+from config import Config
+from prompt import build_financial_prompt
+from typing import List, Optional
+from modules.embedding import EmbeddingManager
+from modules.retrieval import RetrievalManager
+from modules.data_utils import DataUtils
+from modules.llm_utils import LLMManager
 try:
     import PyPDF2
 except ImportError:
     PyPDF2 = None
-import time
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,18 +56,17 @@ class FinancialRAGPipeline:
             raise ValueError(f"Invalid data path: {data_path}. File does not exist.")
         self.data_path = data_path
         self.openai_api_key = openai_api_key
-        self.embeddings = SentenceTransformerEmbeddings(model_name=Config.EMBEDDING_MODEL)
-        self.vector_store = None
-        self.llm = ChatOpenAI(
-            openai_api_key=openai_api_key,
+        self.embedding_manager = EmbeddingManager(model_name=Config.EMBEDDING_MODEL)
+        self.retrieval_manager = None
+        self.llm_manager = LLMManager(
+            api_key=openai_api_key,
             model_name=Config.LLM_MODEL,
             temperature=Config.LLM_TEMPERATURE,
             max_tokens=Config.LLM_MAX_TOKENS,
             top_p=Config.LLM_TOP_P,
-            frequency_penalty=Config.LLM_FREQUENCY_PENALTY,
-            presence_penalty=Config.LLM_PRESENCE_PENALTY
+            freq_penalty=Config.LLM_FREQUENCY_PENALTY,
+            pres_penalty=Config.LLM_PRESENCE_PENALTY
         )
-        self.qa_chain = None
         self.cache = {}
         logging.info(f"Initialized pipeline with data: {data_path}")
 
@@ -80,20 +79,20 @@ class FinancialRAGPipeline:
         try:
             logging.info("Loading financial data for embedding...")
             df = self._parse_file(self.data_path)
-            df = self._validate_and_clean_data(df)
+            df = DataUtils.clean_data(df)
             # Separate structured and unstructured columns
             text_cols = [col for col in df.columns if df[col].dtype == 'object']
             num_cols = [col for col in df.columns if df[col].dtype != 'object']
             texts = []
-            # For structured/tabular data, combine all columns per row
             if num_cols:
                 texts.extend(df.astype(str).apply(lambda row: ' '.join(row), axis=1).tolist())
-            # For unstructured/text data, embed each text column separately
             for col in text_cols:
                 texts.extend(df[col].dropna().astype(str).tolist())
             chunks = self._chunk_texts(texts)
             logging.info(f"Embedding {len(chunks)} chunks of data.")
-            self.vector_store = FAISS.from_texts(chunks, self.embeddings)
+            embeddings = self.embedding_manager.embed_texts(chunks)
+            self.retrieval_manager = RetrievalManager(self.embedding_manager.embeddings)
+            self.retrieval_manager.build_vector_store(chunks)
             logging.info("In-memory FAISS vector store created.")
         except Exception as e:
             logging.error(f"Error in load_and_embed: {e}")
@@ -110,11 +109,10 @@ class FinancialRAGPipeline:
         Raises:
             Exception: If vector store is not initialized.
         """
-        if not self.vector_store:
+        if not self.retrieval_manager or not self.retrieval_manager.vector_store:
             raise Exception("Vector store not initialized. Call load_and_embed() first.")
         logging.info(f"Performing similarity search for: {query}")
-        docs = self.vector_store.similarity_search(query, k=k)
-        return [doc.page_content for doc in docs]
+        return self.retrieval_manager.similarity_search(query, k=k)
 
     def query(self, question: str) -> Optional[str]:
         """
@@ -124,20 +122,19 @@ class FinancialRAGPipeline:
         Returns:
             Optional[str]: The LLM's answer, or None if an error occurs.
         """
-        if not self.vector_store:
+        if not self.retrieval_manager or not self.retrieval_manager.vector_store:
             raise Exception("Vector store not initialized. Call load_and_embed() first.")
         cache_key = hashlib.sha256(question.encode()).hexdigest()
         if cache_key in self.cache:
             logging.info("Returning cached result.")
             return self.cache[cache_key]
         try:
-            # Retrieve top-k similar chunks
             context_chunks = self.similarity_search(question, k=5)
             context = "\n".join(context_chunks)
             full_prompt = build_financial_prompt(context, question)
             logging.info(f"Querying LLM with context: {full_prompt}")
-            time.sleep(2)  # Add delay to reduce request frequency
-            answer = self.llm.invoke(full_prompt)
+            time.sleep(2)
+            answer = self.llm_manager.llm.invoke(full_prompt)
             self.cache[cache_key] = answer
             logging.info(f"LLM response: {answer}")
             return answer
@@ -172,18 +169,7 @@ class FinancialRAGPipeline:
         else:
             raise ValueError(f"Unsupported file type or missing PDF parser for: {file_path}")
 
-    def _validate_and_clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Validate and clean the input DataFrame by removing duplicates and filling missing values.
-        Args:
-            df (pd.DataFrame): Input data.
-        Returns:
-            pd.DataFrame: Cleaned data.
-        """
-        df = df.drop_duplicates()
-        df = df.fillna('N/A')
-        logging.info(f"Validated and cleaned data: {df.shape[0]} rows.")
-        return df
+    # Data cleaning/validation now handled by DataUtils
 
     def _chunk_texts(self, texts: List[str]) -> List[str]:
         """

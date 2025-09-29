@@ -21,7 +21,8 @@ def teardown_module(module):
 def test_load_and_embed():
     pipeline = FinancialRAGPipeline(TEST_DATA_PATH, TEST_API_KEY)
     pipeline.load_and_embed()
-    assert pipeline.vector_store is not None
+    assert pipeline.retrieval_manager is not None
+    assert pipeline.retrieval_manager.vector_store is not None
 
 def test_chunking():
     pipeline = FinancialRAGPipeline(TEST_DATA_PATH, TEST_API_KEY)
