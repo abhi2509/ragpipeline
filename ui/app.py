@@ -15,14 +15,64 @@ except ImportError:
 """
 Streamlit UI for Financial Data RAG Pipeline
 
-- Allows users to upload financial data in CSV, Excel, JSON, or PDF format
-- Parses and normalizes uploaded data
-- Initializes and runs the RAG pipeline for question answering
-- Reads OpenAI API key from environment variable
-- Shows query performance and retrieved context
+- Modern light mode UI with custom CSS
+- Sidebar instructions and tips
+- Data preview and charts
+- Query performance and context display
 """
 
-st.set_page_config(page_title="Financial RAG Pipeline", layout="wide")
+st.set_page_config(page_title="Financial RAG Pipeline", layout="wide", initial_sidebar_state="expanded")
+
+# Custom CSS for light mode and modern look
+st.markdown("""
+    <style>
+    body, .stApp {
+        background-color: #18191a;
+        color: #f5f6fa;
+        font-family: inherit;
+    }
+    .stApp header {background: #222;}
+    .stApp [data-testid="stSidebar"] {
+        background-color: #222;
+        border-right: 1px solid #333;
+        color: #f5f6fa;
+    }
+    .stApp .stButton>button {
+        background-color: #007bff;
+        color: #fff;
+        border-radius: 6px;
+        border: none;
+        padding: 0.5em 1.2em;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+    .stApp .stButton>button:hover {
+        background-color: #0056b3;
+    }
+    .stApp .stTextInput>div>input {
+        background: #222;
+        color: #f5f6fa;
+        border-radius: 6px;
+        border: 1px solid #444;
+        padding: 0.5em;
+    }
+    .stApp .stDataFrame {
+        background: #222;
+        color: #f5f6fa;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    .stApp .stExpander {
+        background: #23272f;
+        border-radius: 8px;
+        color: #f5f6fa;
+    }
+    .stApp .stMarkdown {
+        font-size: 1.05em;
+        color: #f5f6fa;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 with st.sidebar:
     st.header("Instructions")
@@ -36,7 +86,7 @@ with st.sidebar:
 
 st.title("Financial Data RAG Pipeline")
 
-api_key = st.text_input("Enter your OpenAI API Key:", type="password")
+api_key = os.getenv("OPENAI_API_KEY")
 
 uploaded_file = st.file_uploader(
     "Upload your financial data (CSV, Excel, JSON, PDF)", type=["csv", "xlsx", "json", "pdf"])
@@ -74,7 +124,6 @@ if uploaded_file and api_key:
     data_path, df = parse_file(uploaded_file)
     if df is not None:
         st.success(f"Uploaded and parsed {uploaded_file.name}")
-        # Show data preview and charts
         st.subheader("Data Preview")
         st.dataframe(df.head(20))
         st.subheader("Data Charts")
