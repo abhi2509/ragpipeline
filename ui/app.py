@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import sys
+import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from pipeline import FinancialRAGPipeline
 import pandas as pd
@@ -18,7 +19,20 @@ Streamlit UI for Financial Data RAG Pipeline
 - Parses and normalizes uploaded data
 - Initializes and runs the RAG pipeline for question answering
 - Reads OpenAI API key from environment variable
+- Shows query performance and retrieved context
 """
+
+st.set_page_config(page_title="Financial RAG Pipeline", layout="wide")
+
+with st.sidebar:
+    st.header("Instructions")
+    st.markdown("""
+    1. Upload your financial data (CSV, Excel, JSON, PDF).
+    2. Ask questions about your data.
+    3. View query performance and retrieved context.
+    """)
+    st.markdown("---")
+    st.markdown("**Tip:** Use specific questions for best results.")
 
 st.title("Financial Data RAG Pipeline")
 
@@ -60,6 +74,16 @@ if uploaded_file and api_key:
     data_path, df = parse_file(uploaded_file)
     if df is not None:
         st.success(f"Uploaded and parsed {uploaded_file.name}")
+        # Show data preview and charts
+        st.subheader("Data Preview")
+        st.dataframe(df.head(20))
+        st.subheader("Data Charts")
+        numeric_cols = df.select_dtypes(include=['number']).columns
+        if len(numeric_cols) >= 1:
+            for col in numeric_cols:
+                st.line_chart(df[col], height=200, use_container_width=True)
+        else:
+            st.info("No numeric columns available for charting.")
         # Save parsed data as CSV for pipeline
         csv_path = data_path if data_path.endswith(".csv") else data_path + ".csv"
         df.to_csv(csv_path, index=False)
@@ -70,5 +94,13 @@ if uploaded_file and api_key:
 if "pipeline" in st.session_state:
     question = st.text_input("Ask a question about your financial data:")
     if question:
+        start_time = time.time()
+        # Retrieve context chunks for display
+        context_chunks = st.session_state["pipeline"].similarity_search(question, k=5)
         answer = st.session_state["pipeline"].query(question)
+        elapsed = time.time() - start_time
+        st.markdown(f"**Query Performance:** {elapsed:.2f} seconds")
+        with st.expander("Show Retrieved Context"):
+            for i, chunk in enumerate(context_chunks, 1):
+                st.markdown(f"**Chunk {i}:** {chunk}")
         st.write("**Answer:**", answer)
